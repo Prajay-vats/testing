@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="utf-8" />
+	<meta name="viewport" content="width=device-width,initial-scale=1" />
+	<title>Calculator</title>
+	<style>
+		:root{font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;}
+		body{display:flex;align-items:center;justify-content:center;height:100vh;margin:0;background:#f3f4f6}
+		.calc{width:320px;background:#111827;border-radius:12px;box-shadow:0 8px 30px rgba(2,6,23,.6);padding:16px}
+		.display{height:64px;background:#0b1220;color:#fff;border-radius:8px;padding:12px;box-sizing:border-box;display:flex;flex-direction:column;justify-content:center;align-items:flex-end;font-size:1.4rem;overflow:hidden}
+		.expression{font-size:0.8rem;opacity:.65}
+		.result{font-weight:600}
+		.keys{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:12px}
+		button{height:52px;border-radius:8px;border:0;font-size:1.1rem;cursor:pointer}
+		button.op{background:#f59e0b;color:#111827}
+		button.func{background:#374151;color:#fff}
+		button.digit{background:#1f2937;color:#fff}
+		button.equal{grid-column:span 2;background:#10b981;color:#fff}
+	</style>
+</head>
+<body>
+	<div class="calc" role="application" aria-label="Calculator">
+		<div class="display" id="display">
+			<div class="expression" id="expr">0</div>
+			<div class="result" id="res">0</div>
+		</div>
+		<div class="keys">
+			<button class="func" data-action="clear">C</button>
+			<button class="func" data-action="back">⌫</button>
+			<button class="func" data-action="percent">%</button>
+			<button class="op" data-value="/">÷</button>
+
+			<button class="digit" data-value="7">7</button>
+			<button class="digit" data-value="8">8</button>
+			<button class="digit" data-value="9">9</button>
+			<button class="op" data-value="*">×</button>
+
+			<button class="digit" data-value="4">4</button>
+			<button class="digit" data-value="5">5</button>
+			<button class="digit" data-value="6">6</button>
+			<button class="op" data-value="-">−</button>
+
+			<button class="digit" data-value="1">1</button>
+			<button class="digit" data-value="2">2</button>
+			<button class="digit" data-value="3">3</button>
+			<button class="op" data-value="+">+</button>
+
+			<button class="digit" data-value="0" style="grid-column:span 2">0</button>
+			<button class="digit" data-value=".">.</button>
+			<button class="equal" data-action="equals">=</button>
+		</div>
+	</div>
+
+	<script>
+		(function(){
+			const exprEl = document.getElementById('expr');
+			const resEl = document.getElementById('res');
+			let expr = '';
+
+			function update(){
+				exprEl.textContent = expr || '0';
+				try{ const v = evaluate(expr); resEl.textContent = v === undefined ? '0' : String(v); }catch(e){ resEl.textContent = 'Error' }
+			}
+
+			function push(v){
+				// prevent multiple leading zeros
+				if(expr === '0' && /[0-9]/.test(v)) expr = v;
+				else expr += v;
+				update();
+			}
+
+			function clearAll(){ expr = ''; update(); }
+			function back(){ expr = expr.slice(0,-1); update(); }
+
+			function percent(){
+				try{ const v = evaluate(expr); expr = String(v/100); update(); }catch(e){ resEl.textContent='Error' }
+			}
+
+			function evaluate(s){
+				if(!s) return 0;
+				// Replace unicode operators
+				s = s.replace(/×/g,'*').replace(/÷/g,'/').replace(/−/g,'-');
+				// Disallow unsafe characters
+				if(/[^0-9.+\-*/()% ]/.test(s)) throw new Error('Invalid');
+				// eslint-disable-next-line no-new-func
+				return Function('return (' + s + ')')();
+			}
+
+			document.querySelectorAll('button').forEach(btn=>{
+				btn.addEventListener('click',()=>{
+					const v = btn.getAttribute('data-value');
+					const a = btn.getAttribute('data-action');
+					if(v) push(v);
+					else if(a === 'clear') clearAll();
+					else if(a === 'back') back();
+					else if(a === 'percent') percent();
+					else if(a === 'equals') { try{ expr = String(evaluate(expr)); update(); }catch(e){ resEl.textContent='Error' }}
+				});
+			});
+
+			window.addEventListener('keydown', e=>{
+				if(e.key >= '0' && e.key <= '9') { push(e.key); e.preventDefault(); }
+				else if(e.key === '.') push('.');
+				else if(['+','-','*','/','(',')'].includes(e.key)) push(e.key);
+				else if(e.key === 'Enter' || e.key === '=') { try{ expr = String(evaluate(expr)); update(); }catch(_) { resEl.textContent='Error' } }
+				else if(e.key === 'Backspace') back();
+				else if(e.key.toLowerCase() === 'c') clearAll();
+			});
+
+			update();
+		})();
+	</script>
+</body>
+</html>

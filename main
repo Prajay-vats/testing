@@ -1,0 +1,126 @@
+#!/usr/bin/env python3
+"""
+Calculator backend module.
+
+Provides a Calculator class with basic arithmetic functions and a safe
+expression evaluator.
+"""
+from __future__ import annotations
+
+import ast
+import operator as op
+import math
+from typing import Any
+
+
+class CalculatorError(Exception):
+	pass
+
+
+class Calculator:
+	"""Simple calculator backend exposing common operations."""
+
+	# allowed operators mapping for safe eval
+	_operators = {
+		ast.Add: op.add,
+		ast.Sub: op.sub,
+		ast.Mult: op.mul,
+		ast.Div: op.truediv,
+		ast.Pow: op.pow,
+		ast.Mod: op.mod,
+		ast.USub: op.neg,
+		ast.UAdd: op.pos,
+	}
+
+	def add(self, a: float, b: float) -> float:
+		return a + b
+
+	def sub(self, a: float, b: float) -> float:
+		return a - b
+
+	def mul(self, a: float, b: float) -> float:
+		return a * b
+
+	def div(self, a: float, b: float) -> float:
+		if b == 0:
+			raise CalculatorError("Division by zero")
+		return a / b
+
+	def power(self, a: float, b: float) -> float:
+		return math.pow(a, b)
+
+	def sqrt(self, a: float) -> float:
+		if a < 0:
+			raise CalculatorError("Square root of negative number")
+		return math.sqrt(a)
+
+	def percent(self, a: float) -> float:
+		return a / 100.0
+
+	def negate(self, a: float) -> float:
+		return -a
+
+	def reciprocal(self, a: float) -> float:
+		if a == 0:
+			raise CalculatorError("Reciprocal of zero")
+		return 1.0 / a
+
+	def evaluate(self, expression: str) -> float:
+		"""Safely evaluate a numeric expression containing + - * / ** % and unary ops.
+
+		Uses ast to parse and only permits a small set of nodes/operators.
+		"""
+		try:
+			parsed = ast.parse(expression, mode="eval")
+		except SyntaxError as e:
+			raise CalculatorError(f"Invalid expression: {e}")
+
+		def _eval(node: ast.AST) -> Any:
+			if isinstance(node, ast.Expression):
+				return _eval(node.body)
+			if isinstance(node, ast.Constant):
+				if isinstance(node.value, (int, float)):
+					return float(node.value)
+				raise CalculatorError("Only numeric constants are allowed")
+			if isinstance(node, ast.Num):  # for Python <3.8
+				return float(node.n)
+			if isinstance(node, ast.BinOp):
+				left = _eval(node.left)
+				right = _eval(node.right)
+				op_type = type(node.op)
+				if op_type not in self._operators:
+					raise CalculatorError(f"Operator {op_type} not allowed")
+				func = self._operators[op_type]
+				try:
+					return func(left, right)
+				except ZeroDivisionError:
+					raise CalculatorError("Division by zero")
+			if isinstance(node, ast.UnaryOp):
+				op_type = type(node.op)
+				if op_type not in self._operators:
+					raise CalculatorError(f"Unary operator {op_type} not allowed")
+				operand = _eval(node.operand)
+				return self._operators[op_type](operand)
+			if isinstance(node, ast.Call):
+				# allow math functions like sqrt, sin, cos via math.<name>
+				if isinstance(node.func, ast.Attribute) and isinstance(node.func.value, ast.Name) and node.func.value.id == 'math':
+					func_name = node.func.attr
+					func = getattr(math, func_name, None)
+					if not callable(func):
+						raise CalculatorError(f"Function math.{func_name} not allowed")
+					args = [_eval(a) for a in node.args]
+					return func(*args)
+				raise CalculatorError("Function calls are not allowed")
+			raise CalculatorError(f"Unsupported expression: {ast.dump(node)}")
+
+		result = _eval(parsed)
+		return float(result)
+
+
+if __name__ == "__main__":
+	# simple smoke test
+	calc = Calculator()
+	print(calc.add(1, 2))
+	print(calc.div(10, 2))
+	print(calc.evaluate("2 + 3 * (4 - 1)"))
+
